@@ -1,0 +1,17 @@
+<RCC>
+    <qresource prefix="/plugins/eodms" >
+        <file>icon.png</file>
+    </qresource>
+	<qresource prefix="/plugins/eodms" >
+        <file>resources/search.png</file>
+    </qresource>
+	<qresource prefix="/plugins/eodms" >
+        <file>resources/settings.png</file>
+    </qresource>
+	<qresource prefix="/plugins/eodms" >
+        <file>resources/order.png</file>
+    </qresource>
+	<qresource prefix="/plugins/eodms" >
+        <file>resources/download.png</file>
+    </qresource>
+</RCC>
