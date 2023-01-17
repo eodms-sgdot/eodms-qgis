@@ -26,7 +26,7 @@
 __title__ = 'EODMS QGIS Plugin'
 __author__ = 'Kevin Ballantyne'
 __copyright__ = 'Copyright (c) His Majesty the King in Right of Canada, ' \
-                'as represented by the Minister of Natural Resources, 2022.'
+                'as represented by the Minister of Natural Resources, 2023.'
 __license__ = 'MIT License'
 # __description__ = ''
 __version__ = '0.1'
@@ -39,9 +39,11 @@ from qgis.PyQt import QtWidgets
 from qgis.PyQt.QtWidgets import QAction, QFileDialog, QMessageBox, QToolBar, \
     QLabel, QWidget, QVBoxLayout
 from qgis.core import *
+from qgis import processing
 from xml.etree import ElementTree
 import xml
 import random
+import urllib.request
 
 # Initialize Qt resources from file resources.py
 from . import resources
@@ -334,6 +336,120 @@ class SearchTask(QgsTask):
                                 tag=MESSAGE_CATEGORY, level=Qgis.Info)
         super().cancel()
 
+class ThumbTask(QgsTask):
+
+    def __init__(self, desc, eodms):
+        super().__init__(desc, QgsTask.CanCancel)
+
+        self.eodms = eodms
+        self.imgs = eodms.img_lst
+        self.desc = desc
+        self.exception = None
+
+    def run(self):
+
+        self.eodms.post_message(f'Started task {self.desc}',
+                                tag=MESSAGE_CATEGORY)
+
+        proj = QgsProject.instance()
+        tree_root = proj.layerTreeRoot()
+
+        group_name = "EODMS Thumbnails"
+        # group = self.eodms.get_group(group_name)
+
+        group = tree_root.findGroup(group_name)
+
+        if group is None:
+            group = tree_root.insertGroup(0, group_name)
+
+        for idx, img in enumerate(self.imgs):
+
+            # fld_idx = img.fields().indexOf('THUMBNAIL_URL')
+            # self.eodms.post_message(f"img_lst: {img.fields().toList()}",
+            #                     tag=MESSAGE_CATEGORY)
+            # self.show_message(f"thumbnail: {img['THUMBNAIL_URL']}")
+
+            rec_id = img['RECORD_ID']
+            thumb_url = img['THUMBNAIL_URL']
+            layer_name = f"Sequence ID {rec_id}"
+            # thumb_fn = f"C:\\TEMP\\Sequence_ID_{rec_id}.jpg"
+            # urllib.request.urlretrieve(thumb_url, thumb_fn)
+
+            geom = img.geometry()
+            poly = geom.asPolygon()
+
+            tmp_layer = QgsRasterLayer(thumb_url, layer_name)
+            tmp_layer.setCrs(QgsCoordinateReferenceSystem("EPSG:4326"))
+            width = tmp_layer.width()
+            height = tmp_layer.height()
+
+            gcps = []
+            gcps.append(f"0 0 {poly[0][0].x()} {poly[0][0].y()} 0")
+            gcps.append(f"0 {height} {poly[0][1].x()} {poly[0][1].y()} 0")
+            gcps.append(f"{width} {height} {poly[0][2].x()} {poly[0][2].y()} 0")
+            gcps.append(f"{width} 0 {poly[0][3].x()} {poly[0][3].y()} 0")
+            extra = ' -gcp '.join(gcps)
+
+            proc_res = processing.run("gdal:translate", {
+                'INPUT': tmp_layer,
+                'TARGET_CRS': 'EPSG:4326',
+                'NODATA': 0,
+                'EXTRA': f'-gcp {extra}',
+                'OUTPUT': 'TEMPORARY_OUTPUT'})
+
+            # self.eodms.post_message(str(proc_res),
+            #                     tag=MESSAGE_CATEGORY)
+
+            rast_lyr = QgsRasterLayer(proc_res['OUTPUT'], layer_name)
+
+            # group.insertLayer(idx, rast_lyr)
+
+            QgsProject.instance().addMapLayer(rast_lyr, False)
+            group.insertLayer(idx, rast_lyr)
+            # group.addLayer(rast_lyr)
+            # group.insertChildNode(idx, rast_lyr)
+
+        # tree_root.addChildNode(group)
+
+        # self.eodms.post_message(f"RAPI URL: {self.rapi.get_rapi_url()}",
+        #                         tag=MESSAGE_CATEGORY)
+
+        return True
+
+    def finished(self, result):
+        """This method is automatically called when self.run returns.
+        result is the return value from self.run.
+        This function is automatically called when the task has completed (
+        successfully or otherwise). You just implement finished() to do
+        whatever
+        follow up stuff should happen after the task is complete. finished is
+        always called from the main thread, so it's safe to do GUI
+        operations and raise Python exceptions here.
+        """
+
+        self.eodms.post_message(f"result: {result}")
+        if result:
+            self.eodms.post_message(f'Task "{self.desc}" completed',
+                                    tag=MESSAGE_CATEGORY, level=Qgis.Success)
+        else:
+            if self.exception is None:
+                self.eodms.post_message(
+                    f'Task "{self.desc}" not successful but '
+                    f'without exception (probably the task was manually '
+                    f'canceled by the user)',
+                    tag=MESSAGE_CATEGORY, level=Qgis.Warning)
+            else:
+                self.eodms.post_message(
+                    f'Task "{self.desc}" Exception: {self.exception}',
+                    tag=MESSAGE_CATEGORY, level=Qgis.Critical)
+                raise self.exception
+
+        self.eodms.post_message("Search task complete.", tag=MESSAGE_CATEGORY)
+
+    def cancel(self):
+        self.eodms.post_message(f'Task "{self.description}" was cancelled',
+                                tag=MESSAGE_CATEGORY, level=Qgis.Info)
+        super().cancel()
 
 class Eodms:
     """QGIS Plugin Implementation."""
@@ -366,6 +482,7 @@ class Eodms:
         self.resource_path = os.path.join(':', 'plugins', 'eodms', 'resources')
         self.post_message("self.resource_path: %s" % self.resource_path)
         self.search_path = f'{self.resource_path}/search.png'
+        self.thumbnail_path = f'{self.resource_path}/thumbnail.png'
         self.settings_path = f'{self.resource_path}/settings.png'
         self.order_path = f'{self.resource_path}/order.png'
         self.download_path = f'{self.resource_path}/download.png'
@@ -438,6 +555,61 @@ class Eodms:
         returnValue = msgBox.exec()
 
         return returnValue
+
+    def get_group(self, group_name):
+
+        proj = QgsProject.instance()
+        root = proj.layerTreeRoot()
+        group = root.findGroup(group_name)
+
+        if group is None:
+            group = QgsLayerTreeGroup(group_name)
+
+        return group
+
+    def show_thumbnails(self):
+
+        self.rapi.reset()
+
+        # Set list of orders from selection
+        self.img_lst = self.get_selection()
+
+        if len(self.img_lst) == 0:
+            msgBox = QMessageBox()
+            msgBox.setIcon(QMessageBox.Warning)
+            msgBox.setText("Please select the images for which you would "
+                           "like to see thumbnails.")
+            msgBox.setWindowTitle("No Selection")
+            msgBox.setStandardButtons(QMessageBox.Ok)
+            returnValue = msgBox.exec()
+            return None
+
+        self.post_message("Running RAPI download...")
+        thumb_task = ThumbTask('Show Thumbnails', self)
+        QgsApplication.taskManager().addTask(thumb_task)
+
+        while thumb_task.status() not in [QgsTask.Complete, QgsTask.Terminated]:
+            QCoreApplication.processEvents()
+        while QgsApplication.taskManager().countActiveTasks() > 0:
+            QCoreApplication.processEvents()
+
+        # proj = QgsProject.instance()
+        # for lyr_id, lyr in proj.mapLayers().items():
+        #     self.iface.layerTreeView().refreshLayerSymbology(lyr_id)
+
+        # Refresh the map canvas
+        self.iface.mapCanvas().refresh()
+
+            # layer_name = f"Sequence ID {rec_id}"
+            # # layer = QgsRasterLayer(thumb_fn, layer_name)
+            # layer = QgsRasterLayer(thumb_url, layer_name)
+            # layer.setCrs(QgsCoordinateReferenceSystem("EPSG:4326"))
+            # box = img.geometry().boundingBox()
+            # xmin, xmax, ymin, ymax = box.xMinimum(), box.xMaximum(), \
+            #                          box.yMinimum(), box.yMaximum()
+            # box = QgsRectangle(xmin, ymin, xmax, ymax)
+            # layer.setExtent(box)
+            # QgsProject.instance().addMapLayer(layer)
 
     def parse_dates(self, in_dates):
         """
@@ -584,7 +756,7 @@ password = {password}'''
         # self.lstImages.clear()
 
         features = []
-        if layer is not None:
+        if layer is not None and not isinstance(layer, QgsRasterLayer):
 
             field_index = layer.fields().indexFromName('RECORD_ID')
 
@@ -697,6 +869,11 @@ password = {password}'''
         icon_path = self.search_path
         self.add_action('search', icon_path, text=self.tr(u'EODMS Search'),
                         callback=self.open_search,
+                        parent=self.iface.mainWindow())
+
+        icon_path = self.thumbnail_path
+        self.add_action('thumbnail', icon_path, text=self.tr(u'Show Thumbnails'),
+                        callback=self.show_thumbnails,
                         parent=self.iface.mainWindow())
 
         icon_path = self.order_path

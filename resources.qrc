@@ -6,6 +6,9 @@
         <file>resources/search.png</file>
     </qresource>
 	<qresource prefix="/plugins/eodms" >
+        <file>resources/thumbnail.png</file>
+    </qresource>
+	<qresource prefix="/plugins/eodms" >
         <file>resources/settings.png</file>
     </qresource>
 	<qresource prefix="/plugins/eodms" >
