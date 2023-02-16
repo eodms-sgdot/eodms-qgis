@@ -31,7 +31,12 @@ from qgis.PyQt import uic
 from qgis.PyQt import QtWidgets
 from PyQt5.QtWidgets import QScrollArea, QWidget, QAbstractItemView
 from qgis.PyQt.QtCore import QCoreApplication
+from PyQt5 import QtCore
+from PyQt5 import QtGui
+from PyQt5.QtCore import QDate, QTime, QDateTime, Qt
 from qgis.core import *
+from qgis.PyQt.QtWidgets import QAction, QFileDialog, QMessageBox, QToolBar, \
+    QLabel, QWidget, QVBoxLayout
 
 # This loads your .ui file so that PyQt can populate your plugin with the elements from Qt Designer
 FORM_CLASS, _ = uic.loadUiType(os.path.join(
@@ -111,6 +116,9 @@ class SearchDialog(QtWidgets.QDialog, FORM_CLASS):
 
         self.butGetList.clicked.connect(self.get_list)
         self.butSelect.clicked.connect(self.select_collections)
+        self.butAddRange.clicked.connect(self.add_date_range)
+        self.butRemoveRange.clicked.connect(self.remove_date_range)
+        self.butInterval.clicked.connect(self.add_date_interval)
         # self.boxOkCancel.accepted.connect(self.submit_search)
 
         # self.collections = rapi.get_collections(as_list=True, opt='title')
@@ -148,13 +156,101 @@ class SearchDialog(QtWidgets.QDialog, FORM_CLASS):
                                 'TOUCHES', 'WITHIN'])
         self.cboGeoOp.setCurrentText('INTERSECTS')
 
-        self.tabFilters.setVisible(False)
+        # self.tabFilters.setVisible(False)
+        for i in range(self.tabFilters.count()):
+            self.tabFilters.removeTab(0)
 
         self.txtMax.setText('150')
 
         self.coll_filters = {}
 
+        self.date_ranges = []
+
+        self.lstDates.clear()
+
+        end_dt = QDateTime.currentDateTime()
+        start_dt = end_dt.addDays(-1)
+        self.datStart.setDateTime(start_dt)
+        self.datEnd.setDateTime(end_dt)
+
+        self.cboInterval.addItems(['hour(s)', 'day(s)', 'week(s)',
+                                   'month(s)', 'year(s)'])
+
+        # Clear date tab widget
+        # for i in range(self.tabDates.count()):
+        #     self.tabDates.removeTab(0)
+        # self.tabDates.setTabText(0, 'Range 1')
         # self.eodms.post_message(f"self dirs: {dir(self)}")
+
+    def add_date_interval(self):
+
+        date_int = self.txtInt.text()
+        if not date_int.isdigit():
+            msgBox = QMessageBox()
+            msgBox.setIcon(QMessageBox.Warning)
+            msgBox.setText("Please enter a valid integer for the date "
+                           "interval.")
+            msgBox.setWindowTitle("Invalid Interval")
+            msgBox.setStandardButtons(QMessageBox.Ok)
+            returnValue = msgBox.exec()
+            return None
+
+        interval_type = self.cboInterval.currentText()
+        if date_int == 1:
+            interval_type = interval_type.replace('(s)', '')
+        else:
+            interval_type = interval_type.replace('(s)', 's')
+        interval_str = f"{date_int} {interval_type}"
+
+        self.lstDates.addItem(interval_str)
+
+    def add_date_range(self):
+
+        start_dt = self.datStart.dateTime().toPyDateTime()
+        end_dt = self.datEnd.dateTime().toPyDateTime()
+
+        start = start_dt.strftime('%Y%m%d_%H%M%S')
+        end = end_dt.strftime('%Y%m%d_%H%M%S')
+
+        date_range = f"{start}-{end}"
+        self.lstDates.addItem(date_range)
+
+        # tab_count = self.tabDates.count()
+        #
+        # tab = QtWidgets.QWidget()
+        # hbox = QtWidgets.QHBoxLayout(tab)
+        #
+        # dteDate1 = QtWidgets.QDateTimeEdit()
+        # dteDate1.setObjectName(f"dteTab{tab_count + 1}Date1")
+        # dt_font = QtGui.QFont()
+        # dt_font.setPointSize(7)
+        # dteDate1.setFont(dt_font)
+        # hbox.addWidget(dteDate1)
+        #
+        # lblTo = QtWidgets.QLabel()
+        # lblTo.setText("to")
+        # lblTo.setAlignment(QtCore.Qt.AlignCenter)
+        # font = QtGui.QFont()
+        # font.setPointSize(12)
+        # lblTo.setFont(font)
+        # hbox.addWidget(lblTo)
+        #
+        # dteDate2 = QtWidgets.QDateTimeEdit()
+        # dteDate2.setObjectName(f"dteTab{tab_count + 1}Date2")
+        # dt_font = QtGui.QFont()
+        # dt_font.setPointSize(7)
+        # dteDate2.setFont(dt_font)
+        # hbox.addWidget(dteDate2)
+        #
+        # # if tab_count == 1:
+        # #     self.tabDates.setCurrentIndex(tab_count - 1)
+        # #     tab = self.tabDates.tabBar()
+        # #     tab.addWidget(hbox)
+        # # else:
+        # self.tabDates.addTab(tab, f"Range {tab_count + 1}")
+        #
+        # # for i in range(self.tabDates.count()):
+        # self.date_ranges.append([dteDate1, dteDate2])
 
     def fill_tab(self, tab, collection):
         coll_id = self.rapi.get_collection_id(collection)
@@ -232,7 +328,8 @@ class SearchDialog(QtWidgets.QDialog, FORM_CLASS):
 
         self.selected_colls = self.lstColl.selectedItems()
 
-        self.eodms.post_message(', '.join([c.text() for c in self.selected_colls]))
+        # self.eodms.post_message(', '.join([c.text()
+        #                       for c in self.selected_colls]))
 
         for idx in range(0, self.tabFilters.count()):
             self.tabFilters.removeTab(0)
@@ -261,13 +358,10 @@ class SearchDialog(QtWidgets.QDialog, FORM_CLASS):
             v_lay = QtWidgets.QVBoxLayout(tab)
 
             coll_id = self.rapi.get_collection_id(coll.text())
-            self.eodms.post_message(f"coll_id: {coll_id}")
             fields = self.rapi.get_available_fields(coll_id, ui_fields=True)
 
             if self.rapi.err_occurred:
                 self.eodms.post_message(self.rapi.err_msg)
-
-            self.eodms.post_message(f"fields: {fields}")
 
             # self.eodms.post_message("")
             # self.eodms.post_message(f"coll_id: {coll_id}")
@@ -413,8 +507,16 @@ class SearchDialog(QtWidgets.QDialog, FORM_CLASS):
     def list_widgets(self, parent, indent=0):
 
         for widget in parent.children():
-            self.eodms.post_message(indent*'-' + f"widget: {widget}")
-            self.eodms.post_message(indent*'-' + f"widget name: "
-                                                 f"{widget.objectName()}")
+            # self.eodms.post_message(indent*'-' + f"widget: {widget}")
+            # self.eodms.post_message(indent*'-' + f"widget name: "
+            #                                      f"{widget.objectName()}")
             if len(widget.children()) > 0:
                 self.list_widgets(widget, indent + 1)
+
+    def remove_date_range(self):
+
+        sel_dates = self.lstDates.selectedItems()
+        if not sel_dates: return
+        for dt in sel_dates:
+            # row = dt.row()
+            self.lstDates.takeItem(self.lstDates.row(dt))

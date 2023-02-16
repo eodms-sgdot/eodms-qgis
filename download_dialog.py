@@ -41,7 +41,7 @@ FORM_CLASS, _ = uic.loadUiType(os.path.join(
 
 MESSAGE_CATEGORY = 'RAPI Tasks'
 
-class OrderTask(QgsTask):
+class GetOrderTask(QgsTask):
 
     def __init__(self, desc, dialog):
         super().__init__(desc, QgsTask.CanCancel)
@@ -58,7 +58,7 @@ class OrderTask(QgsTask):
         self.eodms.post_message(f'Started task {self.desc}',
                                 tag=MESSAGE_CATEGORY)
 
-        self.orders = self.rapi.get_orders(status='AVAILABLE_FOR_DOWNLOAD')
+        self.orders = self.rapi.get_orders()
 
         return True
 
@@ -127,11 +127,8 @@ class DownloadDialog(QtWidgets.QDialog, FORM_CLASS):
 
     def click_ok(self):
         path_txt = self.txtPath.text()
-        self.eodms.post_message(f"path_txt: {path_txt}")
-        self.eodms.post_message(f"len(path_txt): {len(path_txt)}")
 
         if len(path_txt) == 0:
-            self.eodms.post_message(f"len(path_txt) == 0: {len(path_txt) == 0}")
             msgBox = QMessageBox()
             msgBox.setIcon(QMessageBox.Warning)
             msgBox.setText("Please enter a download folder.")
@@ -172,7 +169,7 @@ class DownloadDialog(QtWidgets.QDialog, FORM_CLASS):
 
     def fill_orders(self):
 
-        ord_task = OrderTask('RAPI order', self)
+        ord_task = GetOrderTask('RAPI Get Orders', self)
         QgsApplication.taskManager().addTask(ord_task)
 
         while ord_task.status() not in [QgsTask.Complete, QgsTask.Terminated]:
@@ -185,7 +182,7 @@ class DownloadDialog(QtWidgets.QDialog, FORM_CLASS):
 
         if len(self.orders) > 0:
             col_names = ['Order Id', 'Order Item Id', 'Record Id',
-                         'Collection', 'Date Submitted']
+                         'Collection', 'Date Submitted', 'Status Message']
             self.tblImages.setColumnCount(len(col_names))
             self.tblImages.setHorizontalHeaderLabels(col_names)
             self.tblImages.setRowCount(len(self.orders))
@@ -197,17 +194,20 @@ class DownloadDialog(QtWidgets.QDialog, FORM_CLASS):
                 record_id = order['recordId']
                 coll_id = order['collectionId']
                 date_submitted = self.convert_date(order['dateSubmitted'])
+                status_msg = order['statusMessage']
 
-                self.eodms.post_message(f"Order ID: {order_id}",
-                                        tag=MESSAGE_CATEGORY)
-                self.eodms.post_message(f"Order Item ID: {order_item_id}",
-                                        tag=MESSAGE_CATEGORY)
-                self.eodms.post_message(f"Record ID: {record_id}",
-                                        tag=MESSAGE_CATEGORY)
-                self.eodms.post_message(f"Collection: {coll_id}",
-                                        tag=MESSAGE_CATEGORY)
-                self.eodms.post_message(f"Date Submitted: {date_submitted}",
-                                        tag=MESSAGE_CATEGORY)
+                # self.eodms.post_message(f"Order ID: {order_id}",
+                #                         tag=MESSAGE_CATEGORY)
+                # self.eodms.post_message(f"Order Item ID: {order_item_id}",
+                #                         tag=MESSAGE_CATEGORY)
+                # self.eodms.post_message(f"Record ID: {record_id}",
+                #                         tag=MESSAGE_CATEGORY)
+                # self.eodms.post_message(f"Collection: {coll_id}",
+                #                         tag=MESSAGE_CATEGORY)
+                # self.eodms.post_message(f"Date Submitted: {date_submitted}",
+                #                         tag=MESSAGE_CATEGORY)
+                # self.eodms.post_message(f"Status Message: {status_msg}",
+                #                         tag=MESSAGE_CATEGORY)
 
                 self.tblImages.setItem(idx, 0,
                                        QtWidgets.QTableWidgetItem(
@@ -223,16 +223,18 @@ class DownloadDialog(QtWidgets.QDialog, FORM_CLASS):
                                        QtWidgets.QTableWidgetItem(
                                            date_submitted.strftime(
                                                "%Y-%m-%d, %H:%M:%S")))
+                self.tblImages.setItem(idx, 5,
+                                       QtWidgets.QTableWidgetItem(status_msg))
 
                 lyr_sel = self.eodms.get_selection()
 
-                self.eodms.post_message(f"record IDs: "
-                                        f"{[o['recordId'] for o in self.orders]}",
-                                        tag=MESSAGE_CATEGORY)
+                # self.eodms.post_message(f"record IDs: "
+                #                         f"{[o['recordId'] for o in self.orders]}",
+                #                         tag=MESSAGE_CATEGORY)
 
                 for sel in lyr_sel:
-                    self.eodms.post_message(f"sel: {sel.attributes()}",
-                                            tag=MESSAGE_CATEGORY)
+                    # self.eodms.post_message(f"sel: {sel.attributes()}",
+                    #                         tag=MESSAGE_CATEGORY)
                     idx = [i for i, o in enumerate(self.orders)
                            if o['recordId'] == sel['RECORD_ID']]
                     if len(idx) > 0:

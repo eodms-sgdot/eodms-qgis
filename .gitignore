@@ -26,3 +26,6 @@ share/python-wheels/
 *.egg
 MANIFEST
 *.bak
+
+# user specific overrides
+_update_repository.bat

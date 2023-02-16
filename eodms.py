@@ -44,9 +44,11 @@ from xml.etree import ElementTree
 import xml
 import random
 import urllib.request
+import base64
 
 # Initialize Qt resources from file resources.py
 from . import resources
+from . import config_util
 # import resources
 
 # Import the code for the dialog
@@ -59,6 +61,7 @@ import os.path
 from eodms_rapi import EODMSRAPI
 from osgeo import ogr
 import json
+import datetime
 
 from PyQt5.QtCore import Qt, QVariant
 
@@ -73,18 +76,32 @@ class DownloadTask(QgsTask):
         self.rapi = eodms.rapi
         self.desc = desc
         self.exception = None
+        self.download_res = None
 
     def run(self):
 
         self.eodms.post_message(f'Started task {self.desc}',
                                 tag=MESSAGE_CATEGORY)
 
-        # res = self.rapi.get_results()
-        # self.eodms.post_message(f"res: {res}")
+        self.eodms.post_message(f'Downloading {len(self.eodms.download_items)}'
+                                f' images.',
+                                tag=MESSAGE_CATEGORY)
 
-        self.eodms.rapi.download(self.eodms.download_items,
-                                 self.eodms.download_folder,
-                                 show_progress=False)
+        self.download_res = self.eodms.rapi.download(self.eodms.download_items,
+                                                     self.eodms.download_folder,
+                                                     show_progress=False)
+
+        out_str = ''
+        for item in self.download_res:
+            rec_id = item.get('recordId')
+            dl_paths = item.get('downloadPaths')
+            for p in dl_paths:
+                download_loc = p.get('local_destination')
+                out_str += f"\n  Sequence ID {rec_id}: {download_loc}"
+
+        self.eodms.post_message(f'Task {self.desc} complete. '
+                                f'{out_str}',
+                                tag=MESSAGE_CATEGORY)
 
         return True
 
@@ -99,7 +116,6 @@ class DownloadTask(QgsTask):
         operations and raise Python exceptions here.
         """
 
-        self.eodms.post_message(f"result: {result}")
         if result:
             self.eodms.post_message(
                 f'Task "{self.desc}" completed', tag=MESSAGE_CATEGORY,
@@ -140,9 +156,6 @@ class OrderTask(QgsTask):
         self.eodms.post_message(f'Started task {self.desc}',
                                 tag=MESSAGE_CATEGORY)
 
-        # res = self.rapi.get_results()
-        # self.eodms.post_message(f"res: {res}")
-
         if self.eodms.rapi_results is None:
             rapi_results = []
             for o in self.eodms.order_lst:
@@ -153,57 +166,32 @@ class OrderTask(QgsTask):
         else:
             rapi_results = self.eodms.rapi_results
 
-        # self.eodms.post_message(f"self.eodms.order_lst: {self.eodms.order_lst}")
-
         res = []
-        # self.eodms.post_message(f"rapi_results: {rapi_results}",
-        #                         tag=MESSAGE_CATEGORY)
-        # self.eodms.post_message(f"self.eodms.order_lst: "
-        #                         f"{self.eodms.order_lst}", tag=MESSAGE_CATEGORY)
-
         if isinstance(rapi_results, dict):
             features = rapi_results.get('features')
         else:
             features = rapi_results
 
         order_rec_ids = [s['RECORD_ID'] for s in self.eodms.order_lst]
-        self.eodms.post_message(order_rec_ids, tag=MESSAGE_CATEGORY)
+        # self.eodms.post_message(order_rec_ids, tag=MESSAGE_CATEGORY)
 
-        for r in features:
-            # self.eodms.post_message(f"r: {r}")
-            rec_id = r.get('recordId')
+        for feat in features:
+            if 'properties' in feat.keys():
+                props = feat.get('properties')
+            else:
+                props = feat
+            rec_id = props.get('recordId')
             if rec_id is None:
-                rec_id = r.get('RECORD_ID')
-            self.eodms.post_message(f"rec_id: {rec_id}", tag=MESSAGE_CATEGORY)
-            # if r['recordId'] in [s['RECORD_ID'] for s in self.eodms.order_lst]:
+                rec_id = props.get('RECORD_ID')
             if rec_id in order_rec_ids:
-                res.append(r)
+                res.append(props)
+
+        if len(res) == 0:
+            return False
 
         self.eodms.post_message(f"res: {res}")
 
         order_res = self.rapi.order(res, self.priority)
-
-        self.eodms.post_message(f"order_res: {order_res}")
-
-        # self.rapi.clear_results()
-        # for coll_id, values in self.params.items():
-        #     self.eodms.post_message(f"  coll_id: {coll_id}")
-        #     filters = values.get('filters')
-        #     features = values.get('features')
-        #     dates = values.get('dates')
-        #     max_res = values.get('max_res')
-        #     self.rapi.search(coll_id, filters, features, dates,
-        #                      max_results=max_res)
-        #
-        #     # res = self.rapi.get_results()
-        #
-        #     # self.eodms.post_message(f"res: {len(res)}")
-        #
-        # self.rapi.set_field_convention('upper')
-        # self.rapi_results = self.rapi.get_results('geojson',
-        #                                           show_progress=False)
-
-        # self.rapi_results = self.rapi.get_results()
 
         return True
 
@@ -218,7 +206,6 @@ class OrderTask(QgsTask):
         operations and raise Python exceptions here.
         """
 
-        self.eodms.post_message(f"result: {result}")
         if result:
             self.eodms.post_message(
                 f'Task "{self.desc}" completed', tag=MESSAGE_CATEGORY,
@@ -266,13 +253,14 @@ class SearchTask(QgsTask):
                                 tag=MESSAGE_CATEGORY)
 
         self.rapi.clear_results()
-        self.eodms.post_message(f"self.params: {self.params}")
+        # self.eodms.post_message(f"self.params: {self.params}")
         for coll_id, values in self.params.items():
             # self.eodms.post_message(f"  coll_id: {coll_id}")
             filters = values.get('filters')
             features = values.get('features')
             dates = values.get('dates')
-            dates = self.eodms.parse_dates(dates)
+            # dates = self.eodms.parse_dates(dates)
+            self.eodms.post_message(f"dates: {dates}")
             max_res = values.get('max_res')
             self.eodms.post_message(f"Parameter list:\n"
                                     f"  Collection: {coll_id}\n"
@@ -283,10 +271,6 @@ class SearchTask(QgsTask):
                                     tag=MESSAGE_CATEGORY)
             self.rapi.search(coll_id, filters, features, dates,
                              max_results=max_res)
-
-            # res = self.rapi.get_results()
-
-            # self.eodms.post_message(f"res: {len(res)}")
 
         self.rapi.set_field_convention('upper')
         self.rapi_results = self.rapi.get_results('geojson',
@@ -312,7 +296,6 @@ class SearchTask(QgsTask):
         operations and raise Python exceptions here.
         """
 
-        self.eodms.post_message(f"result: {result}")
         if result:
             self.eodms.post_message(f'Task "{self.desc}" completed',
                                     tag=MESSAGE_CATEGORY, level=Qgis.Success)
@@ -397,9 +380,6 @@ class ThumbTask(QgsTask):
                 'EXTRA': f'-gcp {extra}',
                 'OUTPUT': 'TEMPORARY_OUTPUT'})
 
-            # self.eodms.post_message(str(proc_res),
-            #                     tag=MESSAGE_CATEGORY)
-
             rast_lyr = QgsRasterLayer(proc_res['OUTPUT'], layer_name)
 
             # group.insertLayer(idx, rast_lyr)
@@ -410,9 +390,6 @@ class ThumbTask(QgsTask):
             # group.insertChildNode(idx, rast_lyr)
 
         # tree_root.addChildNode(group)
-
-        # self.eodms.post_message(f"RAPI URL: {self.rapi.get_rapi_url()}",
-        #                         tag=MESSAGE_CATEGORY)
 
         return True
 
@@ -427,7 +404,6 @@ class ThumbTask(QgsTask):
         operations and raise Python exceptions here.
         """
 
-        self.eodms.post_message(f"result: {result}")
         if result:
             self.eodms.post_message(f'Task "{self.desc}" completed',
                                     tag=MESSAGE_CATEGORY, level=Qgis.Success)
@@ -466,8 +442,10 @@ class Eodms:
         # Save reference to the QGIS interface
         self.iface = iface
 
-        self.conf_file = os.path.join(os.sep, os.path.expanduser('~'), '.eodms',
-                                      'qgis_config.ini')
+        # self.conf_file = os.path.join(os.sep, os.path.expanduser('~'), '.eodms',
+        #                               'config.ini')
+        self.conf_util = config_util.ConfigUtils(self)
+        self.conf_util.import_config()
 
         self.post_message("EODMS Plugin, Version %s" % __version__)
 
@@ -711,28 +689,40 @@ class Eodms:
 
         # self.post_message(f"conf_file: {self.conf_file}")
 
-        lines = []
-        if os.path.exists(self.conf_file):
-            in_f = open(self.conf_file)
-            lines = in_f.readlines()
-            in_f.close()
+        # lines = []
+        # if os.path.exists(self.conf_file):
+        #     in_f = open(self.conf_file)
+        #     lines = in_f.readlines()
+        #     in_f.close()
+        #
+        # settings = {}
+        # for ln in lines:
+        #     item = ln.split(' = ')
+        #     if len(item) == 2:
+        #         key, value = item
+        #         settings[key.strip('\n')] = value.strip('\n')
 
         settings = {}
-        for ln in lines:
-            item = ln.split(' = ')
-            if len(item) == 2:
-                key, value = item
-                settings[key.strip('\n')] = value.strip('\n')
+        settings['username'] = self.conf_util.get('Credentials', 'username')
+        settings['password'] = base64.b64decode(
+            self.conf_util.get('Credentials', 'password')).decode("utf-8")
 
-        # self.post_message(f"settings: {settings}")
+        # self.post_message(f"Settings: {settings}")
+
         self.save_setting(settings)
 
     def save_creds(self, username, password):
-        out_str = f'''username = {username}
-password = {password}'''
+#         out_str = f'''username = {username}
+# password = {password}'''
+#
+#         with open(self.conf_file, 'w') as conf_f:
+#             conf_f.write(out_str)
 
-        with open(self.conf_file, 'w') as conf_f:
-            conf_f.write(out_str)
+        pass_enc = base64.b64encode(password.encode("utf-8")).decode("utf-8")
+        self.conf_util.set('Credentials', 'username', username)
+        self.conf_util.set('Credentials', 'password', pass_enc)
+
+        self.conf_util.write()
 
     def get_setting(self, key):
         """Gets a setting from the project settings.
@@ -827,11 +817,6 @@ password = {password}'''
         :rtype: QAction
         """
 
-        # self.post_message("")
-        # self.post_message(f"icon path: {icon_path}")
-        # self.post_message(f"text: {text}")
-        # self.post_message(f"parent: {parent}")
-
         icon = QIcon(icon_path)
         action = QAction(icon, text, parent)
         action.triggered.connect(callback)
@@ -852,9 +837,6 @@ password = {password}'''
             self.iface.addPluginToWebMenu(self.menu, action)
 
         self.actions[action_name] = action
-
-        # self.post_message(f"actions: {[a.text() for a in self.actions]}")
-        # self.post_message(f"actions: {dir(self.actions)}")
 
         return action
 
@@ -894,8 +876,6 @@ password = {password}'''
     def unload(self):
         """Removes the plugin menu item and icon from QGIS GUI."""
         for action in self.actions.values():
-            self.post_message(f'action: {action}')
-            self.post_message(f'action type: {type(action)}')
             self.iface.removePluginWebMenu(self.tr(u'&EODMS'), action)
             # self.iface.removeToolBarIcon(action)
         del self.toolbar
@@ -969,9 +949,6 @@ password = {password}'''
 
     def display_results(self):
 
-        # self.post_message(f"res: {self.rapi_results}")
-        # self.post_message(f"Number of results: {len(self.rapi_results)}")
-
         layer = QgsVectorLayer('Polygon?crs=epsg:4326', 'EODMS RAPI Results',
                                'memory')
 
@@ -991,8 +968,6 @@ password = {password}'''
 
         # Add fields from properties
         fields = []
-        # self.post_message(f"self.rapi_results: {self.rapi_results}",
-        #                   tag=MESSAGE_CATEGORY)
         self.post_message(f"Number of results: "
                           f"{len(self.rapi_results['features'])}",
                           tag=MESSAGE_CATEGORY)
@@ -1009,12 +984,8 @@ password = {password}'''
         for field in fields:
             if field == 'GEOMETRY':
                 continue
-            # self.post_message(f"Adding field: {field}")
             pr.addAttributes([QgsField(field, QVariant.String)])
         layer.updateFields()
-
-        # field_names = [field.name() for field in layer.fields()]
-        # self.post_message(f"field_names: {field_names}")
 
         for res in self.rapi_results['features']:
             coords = res['geometry']
@@ -1057,30 +1028,28 @@ password = {password}'''
         # Run the dialog event loop
         result = self.download_dlg.exec_()
 
-        self.post_message(f"result: {result}")
-
         download_action.setEnabled(True)
         download_action.setText(f'{icon_text}')
 
         if result:
-            # self.post_message("Yo!")
             self.download_folder = self.download_dlg.txtPath.text()
             tblImages = self.download_dlg.tblImages
             model = tblImages.model()
             sel_indexes = tblImages.selectionModel().selectedRows()
 
             self.download_items = []
-            for idx in sel_indexes:
-                row = idx.row()
+            for idx, sel_idx in enumerate(sel_indexes):
+                row = sel_idx.row()
                 order_id = model.data(model.index(row, 0))
                 ord_item_id = model.data(model.index(row, 1))
                 rec_id = model.data(model.index(row, 2))
                 coll_id = model.data(model.index(row, 3))
 
-                self.post_message(f"order_id: {order_id}")
-                self.post_message(f"ord_item_id: {ord_item_id}")
-                self.post_message(f"rec_id: {rec_id}")
-                self.post_message(f"coll_id: {coll_id}")
+                self.post_message(f"Download #{idx}:")
+                self.post_message(f"  order_id: {order_id}")
+                self.post_message(f"  ord_item_id: {ord_item_id}")
+                self.post_message(f"  rec_id: {rec_id}")
+                self.post_message(f"  coll_id: {coll_id}")
 
                 item = {
                     'recordId': rec_id,
@@ -1090,7 +1059,7 @@ password = {password}'''
                 }
                 self.download_items.append(item)
 
-            self.post_message(f"number of items: {len(self.download_items)}")
+            self.post_message(f"Number of items: {len(self.download_items)}")
 
             self.post_message("Running RAPI download...")
             download_task = DownloadTask('RAPI download', self)
@@ -1132,8 +1101,6 @@ password = {password}'''
 
         self.order_dlg.setModal(True)
 
-        # self.post_message(f"self.order_lst: {self.order_lst}")
-
         # self.order_dlg.setWindowFlags(Qt.WindowStaysOnTopHint)
 
         # show the dialog
@@ -1160,8 +1127,6 @@ password = {password}'''
                 QCoreApplication.processEvents()
 
             # self.rapi_results = order_task.rapi_results
-
-            self.post_message(f"order_json: {self.rapi.order_json}")
 
     def open_search(self):
         """Run method that performs all the real work"""
@@ -1218,8 +1183,11 @@ password = {password}'''
             coll_filters = self.search_dlg.coll_filters
             txtFeatures = self.search_dlg.txtFeatures
             cboGeoOp = self.search_dlg.cboGeoOp
-            txtDates = self.search_dlg.txtDates
+            # objDates = self.search_dlg.date_ranges
+            lstDates = self.search_dlg.lstDates
             txtMax = self.search_dlg.txtMax
+
+            # self.post_message(f"objDates: {objDates}")
 
             search_params = {}
             for coll, filters in coll_filters.items():
@@ -1231,15 +1199,31 @@ password = {password}'''
                     features = [(cboGeoOp.currentText(),
                                  txtFeatures.toPlainText())]
 
-                dates = None
-                if not txtDates.toPlainText() == '':
-                    dates = txtDates.toPlainText()
+                dates = []
+                for idx in range(lstDates.count()):
+                    dt_str = lstDates.item(idx).text()
+                    if dt_str.find('-') > -1:
+                        start, end = dt_str.split('-')
+                        dates.append({'start': start, 'end': end})
+                    else:
+                        dates.append(dt_str)
+
+                # # if not txtDates.toPlainText() == '':
+                # #     dates = txtDates.toPlainText()
+                # self.post_message(f"Number of objDates: {len(objDates)}")
+                # for d_objs in objDates:
+                #     start_dt = d_objs[0].dateTime().toPyDateTime()
+                #     end_dt = d_objs[1].dateTime().toPyDateTime()
+                #     self.post_message(f"start_dt: {type(start_dt)}")
+                #     self.post_message(f"end_dt: {type(end_dt)}")
+                #     start = start_dt.strftime('%Y%m%d_%H%M%S')
+                #     end = end_dt.strftime('%Y%m%d_%H%M%S')
+                #     dates.append({'start': start, 'end': end})
 
                 max_res = None
                 if not txtMax.text() == '':
                     max_res = txtMax.text()
 
-                self.post_message(f"filters: {filters}")
                 rapi_filters = {}
                 for filter in filters:
                     filter_name = filter[0].text().replace(':', '')
@@ -1259,31 +1243,26 @@ password = {password}'''
                     if filter_name == 'Price':
                         values = [True if v.find('Free') > -1 else False
                                   for v in values]
+                    if filter_name == 'Preview Available':
+                        values = [True if v.find('Yes') > -1 else None
+                                  for v in values]
 
                     if not isinstance(values, list):
                         values = [values]
 
-                    self.post_message(f"values: {values}")
-                    values[:] = [item for item in values if item != '']
-
-                    self.post_message(f"values: {values}")
+                    values[:] = [item for item in values if item is None
+                                 or item != '']
 
                     if len(values) == 0:
                         continue
 
                     rapi_filters[filter_name] = (op, values)
 
-                # self.post_message(f"coll_id: {coll_id}")
-                self.post_message(f"features: {features}")
-                # self.post_message(f"dates: {dates}")
-                # self.post_message(f"rapi_filters: {rapi_filters}")
-
                 search_params[coll_id] = {'filters': rapi_filters,
                                           'features': features,
                                           'dates': dates,
                                           'max_res': max_res}
 
-            # self.post_message(f"search_params: {search_params}")
             self.post_message("Running RAPI search...")
             search_task = SearchTask('RAPI search', self, search_params)
             QgsApplication.taskManager().addTask(search_task)

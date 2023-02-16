@@ -6,19 +6,19 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>811</width>
+    <width>960</width>
     <height>440</height>
    </rect>
   </property>
   <property name="minimumSize">
    <size>
-    <width>811</width>
+    <width>960</width>
     <height>440</height>
    </size>
   </property>
   <property name="maximumSize">
    <size>
-    <width>811</width>
+    <width>960</width>
     <height>440</height>
    </size>
   </property>
@@ -43,7 +43,7 @@
     <rect>
      <x>10</x>
      <y>60</y>
-     <width>791</width>
+     <width>941</width>
      <height>331</height>
     </rect>
    </property>
@@ -77,7 +77,7 @@
     <rect>
      <x>90</x>
      <y>10</y>
-     <width>601</width>
+     <width>751</width>
      <height>21</height>
     </rect>
    </property>
@@ -85,7 +85,7 @@
   <widget class="QPushButton" name="butBrowse">
    <property name="geometry">
     <rect>
-     <x>700</x>
+     <x>860</x>
      <y>10</y>
      <width>91</width>
      <height>22</height>
@@ -98,8 +98,8 @@
   <widget class="QPushButton" name="butOk">
    <property name="geometry">
     <rect>
-     <x>600</x>
-     <y>410</y>
+     <x>760</x>
+     <y>400</y>
      <width>91</width>
      <height>21</height>
     </rect>
@@ -111,8 +111,8 @@
   <widget class="QPushButton" name="butCancel">
    <property name="geometry">
     <rect>
-     <x>700</x>
-     <y>410</y>
+     <x>860</x>
+     <y>400</y>
      <width>91</width>
      <height>21</height>
     </rect>
