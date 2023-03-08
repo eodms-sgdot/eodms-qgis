@@ -8,7 +8,9 @@
                              -------------------
         begin                : 2022-05-19
         git sha              : $Format:%H$
-        copyright            : (C) 2022 by Kevin Ballantyne/Natural Resources Canada
+        copyright            : Copyright (c) His Majesty the King in Right of 
+                                Canada, as represented by the Minister of 
+                                Natural Resources, 2023.
         email                : eodms-sgdot@nrcan-rncan.gc.ca
  ***************************************************************************/
 
@@ -26,6 +28,9 @@
 
 import os
 from eodms_rapi import EODMSRAPI
+import json
+from datetime import datetime
+# from dateutil.parser import parse
 
 from qgis.PyQt import uic
 from qgis.PyQt import QtWidgets
@@ -35,14 +40,14 @@ from PyQt5 import QtCore
 from PyQt5 import QtGui
 from PyQt5.QtCore import QDate, QTime, QDateTime, Qt
 from qgis.core import *
-from qgis.PyQt.QtWidgets import QAction, QFileDialog, QMessageBox, QToolBar, \
-    QLabel, QWidget, QVBoxLayout
+from qgis.PyQt.QtWidgets import *
 
 # This loads your .ui file so that PyQt can populate your plugin with the elements from Qt Designer
 FORM_CLASS, _ = uic.loadUiType(os.path.join(
     os.path.dirname(__file__), 'search_dialog_base.ui'))
 
 MESSAGE_CATEGORY = 'RAPI Tasks'
+DEFAULT_MAX = "150"
 
 class CollectionTask(QgsTask):
     def __init__(self, desc, dialog):
@@ -119,6 +124,7 @@ class SearchDialog(QtWidgets.QDialog, FORM_CLASS):
         self.butAddRange.clicked.connect(self.add_date_range)
         self.butRemoveRange.clicked.connect(self.remove_date_range)
         self.butInterval.clicked.connect(self.add_date_interval)
+        self.cboPrevSrch.activated.connect(self.select_search)
         # self.boxOkCancel.accepted.connect(self.submit_search)
 
         # self.collections = rapi.get_collections(as_list=True, opt='title')
@@ -131,6 +137,13 @@ class SearchDialog(QtWidgets.QDialog, FORM_CLASS):
         # self.eodms.post_message(f"self dirs: {dir(self)}")
         # self.eodms.post_message(f"parent: {parent}")
         # self.eodms.post_message(f"parent dirs: {dir(parent)}")
+
+        self.searches = None
+        if os.path.exists(self.eodms.prev_srch_fn):
+            with open(self.eodms.prev_srch_fn, 'r') as f:
+                self.searches = json.load(f)
+        self.cboPrevSrch.addItem("")
+        self._add_prev_searches()
 
         layer = self.eodms.iface.activeLayer()
 
@@ -160,7 +173,7 @@ class SearchDialog(QtWidgets.QDialog, FORM_CLASS):
         for i in range(self.tabFilters.count()):
             self.tabFilters.removeTab(0)
 
-        self.txtMax.setText('150')
+        self.txtMax.setText(DEFAULT_MAX)
 
         self.coll_filters = {}
 
@@ -181,6 +194,27 @@ class SearchDialog(QtWidgets.QDialog, FORM_CLASS):
         #     self.tabDates.removeTab(0)
         # self.tabDates.setTabText(0, 'Range 1')
         # self.eodms.post_message(f"self dirs: {dir(self)}")
+
+    def _add_prev_searches(self):
+
+        if self.searches is None:
+            return None
+
+        for k, v in self.searches.items():
+            date = self._convert_date(k, "%Y%m%d_%H%M%S", 
+                                        "%Y-%m-%d,%H:%M:%S")
+            coll = list(v.keys())
+            self.cboPrevSrch.addItem(f"{date} ({', '.join(coll)})")
+
+        # self.cboPrevSrch
+
+    def _convert_date(self, date, in_format, out_format):
+        if date is None or date == '':
+            return ''
+
+        date_obj = datetime.strptime(date, in_format)
+
+        return date_obj.strftime(out_format)
 
     def add_date_interval(self):
 
@@ -324,17 +358,23 @@ class SearchDialog(QtWidgets.QDialog, FORM_CLASS):
                 # item = QtGui.QListView(coll)
                 self.lstColl.addItem(coll)
 
-    def select_collections(self):
+    def clear_filters(self):
+        for idx in range(0, self.tabFilters.count()):
+            self.tabFilters.removeTab(0)
 
-        self.selected_colls = self.lstColl.selectedItems()
+    def create_filters(self, collections=None):
+
+        if collections is None:
+            collections = self.selected_colls
 
         # self.eodms.post_message(', '.join([c.text()
         #                       for c in self.selected_colls]))
 
-        for idx in range(0, self.tabFilters.count()):
-            self.tabFilters.removeTab(0)
+        self.coll_filters = {}
 
-        for coll in self.selected_colls:
+        self.clear_filters()
+
+        for coll in collections:
             # tab = self.create_tab(coll.text())
             # self.eodms.post_message(tab)
             # self.eodms.post_message(dir(tab))
@@ -353,11 +393,11 @@ class SearchDialog(QtWidgets.QDialog, FORM_CLASS):
             tab = QtWidgets.QWidget()
             scroll.setWidget(tab)
             scroll.setWidgetResizable(True)
-            scroll.setObjectName(f"scr{coll.text().replace(' ', '')}")
+            scroll.setObjectName(f"scr{coll.replace(' ', '')}")
 
             v_lay = QtWidgets.QVBoxLayout(tab)
 
-            coll_id = self.rapi.get_collection_id(coll.text())
+            coll_id = self.rapi.get_collection_id(coll)
             fields = self.rapi.get_available_fields(coll_id, ui_fields=True)
 
             if self.rapi.err_occurred:
@@ -367,7 +407,7 @@ class SearchDialog(QtWidgets.QDialog, FORM_CLASS):
             # self.eodms.post_message(f"coll_id: {coll_id}")
             # self.eodms.post_message(f"fields['search']: {fields['search']}")
 
-            cur_fields = self.coll_filters.get(coll.text())
+            cur_fields = self.coll_filters.get(coll)
 
             if cur_fields is None:
                 cur_fields = []
@@ -441,56 +481,115 @@ class SearchDialog(QtWidgets.QDialog, FORM_CLASS):
                 objValue.setObjectName(f"obj{obj_name}")
                 h_lay.addWidget(objValue)
 
-                cur_fields.append([lblField, cboOp, objValue])
+                cur_fields.append([field, cboOp, objValue])
 
                 # h_lay.addStretch(1)
 
                 v_lay.addLayout(h_lay)
 
-            self.coll_filters[coll.text()] = cur_fields
+            self.coll_filters[coll] = cur_fields
 
             v_lay.addStretch()
 
             # scroll.setFixedHeight(400)
 
-            self.tabFilters.addTab(scroll, coll.text())
+            self.tabFilters.addTab(scroll, coll)
 
         self.tabFilters.setVisible(True)
 
-    # def submit_search(self):
-    #
-    #     # self.eodms.post_message(f"self.layout(): {self.layout()}")
-    #
-    #     # items = (self.layout().itemAt(i) for i in range(self.layout().count()))
-    #     # self.eodms.post_message(f"items: {items}")
-    #
-    #     # for widget in self.children():
-    #     #     self.eodms.post_message(f"widget: {widget.objectName()}")
-    #     #     if isinstance(widget, QtWidgets.QTabWidget):
-    #     #         for tab_widget in widget.children():
-    #     #             self.eodms.post_message(f"  tab_widget: {tab_widget}")
-    #     #             self.eodms.post_message(f"  tab_widget: "
-    #     #                                     f"{tab_widget.objectName()}")
-    #
-    #     # self.list_widgets(self.tabFilters)
-    #
-    #     # self.eodms.post_message(f"coll_filters: {self.coll_filters}")
-    #
-    #
-    #
-    #     return search_params
-    #
-    #         # self.rapi.search(coll_id, rapi_filters, features, dates)
-    #         # res = self.rapi.get_results()
-    #         # self.eodms.post_message(f"Number of results: {len(res)}")
-    #
-    #     # for key, filter in self.coll_filters.items():
-    #         # widgets = self.get_widgets(tab)
-    #         #
-    #         # for w in widgets:
-    #         #     self.eodms.post_message(f"widget: {w}")
-    #         #     self.eodms.post_message(f"widget name: {w.objectName()}")
-    #         # self.eodms.post_message(f"filter: {filter}")
+    def select_collections(self):
+
+        self.selected_colls = [coll.text() 
+                               for coll in self.lstColl.selectedItems()]
+
+        self.create_filters()
+
+    def select_search(self):
+        search_sel = self.cboPrevSrch.currentText()
+
+        date_str = search_sel.split(' ')[0]
+        date = self._convert_date(date_str, "%Y-%m-%d,%H:%M:%S", 
+                                  "%Y%m%d_%H%M%S")
+        
+        self.lstDates.clear()
+        self.clear_filters()
+        self.txtMax.setText(DEFAULT_MAX)
+        self.lstColl
+        
+        if date == '':
+            return None
+        
+        cur_search = self.searches[date]
+
+        # self.eodms.post_message(f"cur_search: {cur_search}")
+
+        # Create filters
+        colls = cur_search.keys()
+        # self.eodms.post_message(f"colls: {colls}")
+        self.create_filters(colls)
+
+        # self.eodms.post_message(f"self.coll_filters: {self.coll_filters}")
+
+        # Set date ranges
+        first_item = cur_search.get(next(iter(cur_search)))
+        dates = first_item.get('dates')
+        max_res = first_item.get('max_res')
+
+        self.txtMax.setText(max_res)
+
+        self.list_collections()
+
+        for date in dates:
+            date_range = f"{date.get('start')}-{date.get('end')}"
+            self.lstDates.addItem(date_range)
+
+        for coll, v in cur_search.items():
+
+            filters = v.get('filters')
+
+            # self.lstDates = None
+
+            for x in range(self.lstColl.count()):
+                item = self.lstColl.item(x)
+                if self.eodms.rapi.get_collection_id(item.text()) == coll:
+                    self.lstColl.item(x).setSelected(True)
+
+            filt_objs = self.coll_filters.get(coll)
+
+            self.eodms.post_message(f"filt_objs: {filt_objs}")
+
+            for filter_name, v in filters.items():
+                op_val = v[0]
+                f_val = v[1]
+                self.eodms.post_message(f"filter_name: {filter_name}")
+                self.eodms.post_message(f"op_val: {op_val}")
+                self.eodms.post_message(f"f_val: {f_val}")
+                for obj in filt_objs:
+                    if filter_name == obj[0]:
+                        op_obj = obj[1]
+                        val_obj = obj[2]
+
+                        op_obj.setCurrentText(op_val)
+                        if isinstance(val_obj, QListWidget):
+                            for x in range(val_obj.count()):
+                                item = val_obj.item(x)
+                                if item.text() in f_val:
+                                    val_obj.item(x).setSelected(True)
+                        elif isinstance(val_obj, QComboBox):
+                            for v in f_val:
+                                val_obj.setCurrentText(str(v))
+                        elif isinstance(val_obj, QLineEdit):
+                            val_obj.setText(str(f_val[0]))
+
+                        self.eodms.post_message(f"op_obj: {op_obj}")
+                        self.eodms.post_message(f"val_obj: {val_obj}")
+                
+            # msgBox = QMessageBox()
+            # msgBox.setText(f"filters: {filters}\nfilt_objs: {filt_objs}")
+            # msgBox.setStandardButtons(QMessageBox.Ok)
+            # returnValue = msgBox.exec()
+
+            # self.eodms.post_message(f"filters: {filters}")
 
     def get_widgets(self, parent, widgets=None):
 

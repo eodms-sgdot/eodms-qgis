@@ -8,8 +8,9 @@
                               -------------------
         begin                : 2022-05-19
         git sha              : $Format:%H$
-        copyright            : (C) 2022 by Kevin Ballantyne/Natural Resources
-                                Canada
+        copyright            : Copyright (c) His Majesty the King in Right of 
+                                Canada, as represented by the Minister of 
+                                Natural Resources, 2023.
         email                : eodms-sgdot@nrcan-rncan.gc.ca
  ***************************************************************************/
 
@@ -507,6 +508,27 @@ class Eodms:
         self.download_folder = ''
         self.username = self.get_setting('username')
         self.password = self.get_setting('password')
+
+        self.prev_srch_fn = f"{self.plugin_dir}\\previous_searches.json"
+
+    def _save_search(self, search_params):
+        
+        searches = {}
+        # Get the previous list of searches
+        if os.path.exists(self.prev_srch_fn):
+            with open(self.prev_srch_fn, 'r') as f:
+                searches = json.load(f)
+
+        now = datetime.datetime.now()
+        dt_string = now.strftime("%Y%m%d_%H%M%S")
+        searches[dt_string] = search_params
+
+        # Keep list to 10 entries
+        if len(searches.items()) > 10:
+            (k := next(iter(searches)), searches.pop(k))
+
+        with open(self.prev_srch_fn, "w") as outfile:
+            json.dump(searches, outfile)
 
     # noinspection PyMethodMayBeStatic
     def tr(self, message):
@@ -1155,8 +1177,7 @@ class Eodms:
         search_action = self.actions['search']
         icon_text = search_action.text()
 
-        search_action.setText(f'{icon_text} - Please wait for window to '
-                             'open')
+        search_action.setText(f'{icon_text} - Please wait for window to open')
         search_action.setEnabled(False)
 
         self.search_dlg = SearchDialog(eodms=self)
@@ -1226,7 +1247,8 @@ class Eodms:
 
                 rapi_filters = {}
                 for filter in filters:
-                    filter_name = filter[0].text().replace(':', '')
+                    # filter_name = filter[0].text().replace(':', '')
+                    filter_name = filter[0].replace(':', '')
                     op = filter[1].currentText()
                     if isinstance(filter[2], QtWidgets.QComboBox):
                         values = [filter[2].currentText()]
@@ -1240,12 +1262,12 @@ class Eodms:
                     if len(values) == 0:
                         continue
 
-                    if filter_name == 'Price':
-                        values = [True if v.find('Free') > -1 else False
-                                  for v in values]
-                    if filter_name == 'Preview Available':
-                        values = [True if v.find('Yes') > -1 else None
-                                  for v in values]
+                    # if filter_name == 'Price':
+                    #     values = [True if v.find('Free') > -1 else False
+                    #               for v in values]
+                    # if filter_name == 'Preview Available':
+                    #     values = [True if v.find('Yes') > -1 else None
+                    #               for v in values]
 
                     if not isinstance(values, list):
                         values = [values]
@@ -1262,6 +1284,8 @@ class Eodms:
                                           'features': features,
                                           'dates': dates,
                                           'max_res': max_res}
+            
+            self._save_search(search_params)
 
             self.post_message("Running RAPI search...")
             search_task = SearchTask('RAPI search', self, search_params)
