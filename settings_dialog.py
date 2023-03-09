@@ -60,7 +60,7 @@ class SettingsDialog(QtWidgets.QDialog, FORM_CLASS):
         self.txtUser.setText(self.username)
         self.txtPass.setText(self.password)
         self.txtAttempts.setText(self.attempts)
-        self.txtLog.setText(self.log_path)
+        # self.txtLog.setText(self.log_path)
         self.txtQTimeout.setText(self.query_timeout)
         self.txtOTimeout.setText(self.order_timeout)
 

@@ -790,6 +790,20 @@ class Eodms:
             # self.post_message(f"Saving setting {k}: {v}")
             self.proj.writeEntry("Eodms", k, v)
 
+    def apply_settings(self):
+        self.username = self.get_setting('username')
+        self.password = self.get_setting('password')
+        self.attempts = self.get_setting('attempts')
+        # self.log_path = self.get_setting('log')
+        self.query_timeout = self.get_setting('query_timeout')
+        self.order_timeout = self.get_setting('order_timeout')
+
+        self.rapi.set_attempts(self.attempts)
+        self.rapi.set_query_timeout(self.query_timeout)
+        self.rapi.set_order_timeout(self.order_timeout)
+
+        self.save_creds(self.username, self.password)
+
     def set_rapi(self):
 
         self.username = self.get_setting('username')
@@ -1331,24 +1345,24 @@ class Eodms:
             txtUser = self.settings_dlg.txtUser
             txtPass = self.settings_dlg.txtPass
             txtAttempts = self.settings_dlg.txtAttempts
-            txtLog = self.settings_dlg.txtLog
+            # txtLog = self.settings_dlg.txtLog
             txtQTimeout = self.settings_dlg.txtQTimeout
             txtOTimeout = self.settings_dlg.txtOTimeout
 
             self.username = txtUser.text()
             self.password = txtPass.text()
             self.attempts = txtAttempts.text()
-            self.log_path = txtLog.text()
+            # self.log_path = txtLog.text()
             self.query_timeout = txtQTimeout.text()
             self.order_timeout = txtOTimeout.text()
 
             self.save_setting({'attempts': self.attempts})
-            self.save_setting({'log': self.attempts})
-            self.save_setting({'query_timeout': self.attempts})
-            self.save_setting({'order_timeout': self.attempts})
+            # self.save_setting({'log': self.log_path})
+            self.save_setting({'query_timeout': self.query_timeout})
+            self.save_setting({'order_timeout': self.order_timeout})
             self.save_setting({'username': self.username})
             self.save_setting({'password': self.password})
 
-            self.save_creds(self.username, self.password)
+            self.apply_settings()
 
             self.set_rapi()

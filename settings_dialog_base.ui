@@ -7,7 +7,7 @@
     <x>0</x>
     <y>0</y>
     <width>611</width>
-    <height>211</height>
+    <height>179</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -17,7 +17,7 @@
    <property name="geometry">
     <rect>
      <x>260</x>
-     <y>170</y>
+     <y>140</y>
      <width>341</width>
      <height>32</height>
     </rect>
@@ -100,37 +100,11 @@
     </property>
    </widget>
   </widget>
-  <widget class="QLabel" name="lblLog">
-   <property name="geometry">
-    <rect>
-     <x>20</x>
-     <y>110</y>
-     <width>61</width>
-     <height>16</height>
-    </rect>
-   </property>
-   <property name="text">
-    <string>Log path:</string>
-   </property>
-   <property name="alignment">
-    <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
-   </property>
-  </widget>
-  <widget class="QLineEdit" name="txtLog">
-   <property name="geometry">
-    <rect>
-     <x>90</x>
-     <y>110</y>
-     <width>511</width>
-     <height>21</height>
-    </rect>
-   </property>
-  </widget>
   <widget class="QLabel" name="label_4">
    <property name="geometry">
     <rect>
      <x>20</x>
-     <y>140</y>
+     <y>110</y>
      <width>91</width>
      <height>16</height>
     </rect>
@@ -146,7 +120,7 @@
    <property name="geometry">
     <rect>
      <x>120</x>
-     <y>140</y>
+     <y>110</y>
      <width>61</width>
      <height>21</height>
     </rect>
@@ -156,7 +130,7 @@
    <property name="geometry">
     <rect>
      <x>300</x>
-     <y>140</y>
+     <y>110</y>
      <width>91</width>
      <height>21</height>
     </rect>
@@ -166,7 +140,7 @@
    <property name="geometry">
     <rect>
      <x>190</x>
-     <y>140</y>
+     <y>110</y>
      <width>101</width>
      <height>20</height>
     </rect>
@@ -182,7 +156,7 @@
    <property name="geometry">
     <rect>
      <x>510</x>
-     <y>140</y>
+     <y>110</y>
      <width>91</width>
      <height>21</height>
     </rect>
@@ -192,7 +166,7 @@
    <property name="geometry">
     <rect>
      <x>400</x>
-     <y>140</y>
+     <y>110</y>
      <width>101</width>
      <height>20</height>
     </rect>
@@ -208,7 +182,6 @@
  <tabstops>
   <tabstop>txtUser</tabstop>
   <tabstop>txtPass</tabstop>
-  <tabstop>txtLog</tabstop>
   <tabstop>txtAttempts</tabstop>
   <tabstop>txtQTimeout</tabstop>
   <tabstop>txtOTimeout</tabstop>
