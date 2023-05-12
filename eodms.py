@@ -523,6 +523,12 @@ class Eodms:
         dt_string = now.strftime("%Y%m%d_%H%M%S")
         searches[dt_string] = search_params
 
+        # Check if new search is the same as any previous searches
+        #   If so, don't add new search
+        for k, srch in searches.items():
+            if search_params == srch:
+                return None
+
         # Keep list to 10 entries
         if len(searches.items()) > 10:
             (k := next(iter(searches)), searches.pop(k))

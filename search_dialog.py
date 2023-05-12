@@ -540,7 +540,10 @@ class SearchDialog(QtWidgets.QDialog, FORM_CLASS):
         self.list_collections()
 
         for date in dates:
-            date_range = f"{date.get('start')}-{date.get('end')}"
+            if isinstance(date, str):
+                date_range = date
+            else:
+                date_range = f"{date.get('start')}-{date.get('end')}"
             self.lstDates.addItem(date_range)
 
         for coll, v in cur_search.items():

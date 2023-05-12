@@ -75,6 +75,8 @@ The tools provided in the EODMS plugin are as follows:
 
 1. Before submitting a search, select a feature on the QGIS map to apply a spatial filter to the search.
 
+	> **_NOTE:_**  The projection of the layer must be in WGS84 for the search to work.
+
 	<img title="Polygon Selection" src="./images/selection-example.png" style="box-shadow: 5px 5px 5px grey;">
 
 2. Click the Search button to open the Search dialog.
