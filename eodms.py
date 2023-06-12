@@ -30,7 +30,7 @@ __copyright__ = 'Copyright (c) His Majesty the King in Right of Canada, ' \
                 'as represented by the Minister of Natural Resources, 2023.'
 __license__ = 'MIT License'
 # __description__ = ''
-__version__ = '0.1'
+__version__ = '0.1.0'
 __maintainer__ = 'Kevin Ballantyne'
 __email__ = 'kevin.ballantyne@nrcan-rncan.gc.ca'
 

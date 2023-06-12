@@ -4,7 +4,7 @@ EODMS QGIS Plugin
 - [Installation](#Installation)
 - [Documentation](#documentation)
 
-This Readme contains a quick guide to installing the NAPL Geocoder plugin in QGIS.
+This Readme contains a quick guide to installing the EODMS plugin in QGIS.
 
 ## Installation
 

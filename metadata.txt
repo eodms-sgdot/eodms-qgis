@@ -6,14 +6,14 @@
 name=EODMS
 qgisMinimumVersion=3.0
 description=A plugin used to access the EODMS
-version=0.1
+version=0.2.0
 author=Kevin Ballantyne/Natural Resources Canada
 email=eodms-sgdot@nrcan-rncan.gc.ca
 
 about=A plugin used to access the Earth Observation Data Management System (EODMS).
 
-tracker=http://bugs
-repository=http://repo
+tracker=https://github.com/eodms-sgdot/eodms-qgis/issues
+repository=https://github.com/eodms-sgdot/eodms-qgis
 # End of mandatory metadata
 
 # Recommended items:
@@ -25,7 +25,7 @@ hasProcessingProvider=no
 # Tags are comma separated with spaces allowed
 tags=python
 
-homepage=http://homepage
+homepage=https://www.eodms-sgdot.nrcan-rncan.gc.ca/
 category=Web
 icon=icon.png
 # experimental flag
