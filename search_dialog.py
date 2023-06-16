@@ -82,19 +82,18 @@ class CollectionTask(QgsTask):
         if result:
             self.eodms.post_message(f'Task "{self.desc}" completed',
                                     tag=MESSAGE_CATEGORY, level=Qgis.Success)
+        elif self.exception is None:
+            self.eodms.post_message(f'Task "{self.desc}" not successful '
+                                    f'but without exception (probably the '
+                                    f'task was manually canceled by the '
+                                    f'user)', tag=MESSAGE_CATEGORY,
+                                    level=Qgis.Warning)
         else:
-            if self.exception is None:
-                self.eodms.post_message(f'Task "{self.desc}" not successful '
-                                        f'but without exception (probably the '
-                                        f'task was manually canceled by the '
-                                        f'user)', tag=MESSAGE_CATEGORY,
-                                        level=Qgis.Warning)
-            else:
-                self.eodms.post_message(f'Task "{self.desc}" Exception: '
-                                        f'{self.exception}',
-                                        tag=MESSAGE_CATEGORY,
-                                        level=Qgis.Critical)
-                raise self.exception
+            self.eodms.post_message(f'Task "{self.desc}" Exception: '
+                                    f'{self.exception}',
+                                    tag=MESSAGE_CATEGORY,
+                                    level=Qgis.Critical)
+            raise self.exception
 
         self.eodms.post_message("Collection task complete.")
 
@@ -154,13 +153,11 @@ class SearchDialog(QtWidgets.QDialog, FORM_CLASS):
                 # wkts = []
                 geom = None
                 for feat in features:
-                    if geom == None:
-                        geom = feat.geometry()
-                    else:
-                        geom = geom.combine(feat.geometry())
-                    # geom = feat.geometry()
-                    # wkt_str = geom.asWkt()
-                    # wkts.append(wkt_str)
+                    geom = feat.geometry() if geom is None \
+                            else geom.combine(feat.geometry())
+                                # geom = feat.geometry()
+                                # wkt_str = geom.asWkt()
+                                # wkts.append(wkt_str)
 
                 self.txtFeatures.setText(geom.asWkt())
 
@@ -170,7 +167,7 @@ class SearchDialog(QtWidgets.QDialog, FORM_CLASS):
         self.cboGeoOp.setCurrentText('INTERSECTS')
 
         # self.tabFilters.setVisible(False)
-        for i in range(self.tabFilters.count()):
+        for _ in range(self.tabFilters.count()):
             self.tabFilters.removeTab(0)
 
         self.txtMax.setText(DEFAULT_MAX)
@@ -288,7 +285,7 @@ class SearchDialog(QtWidgets.QDialog, FORM_CLASS):
 
     def fill_tab(self, tab, collection):
         coll_id = self.rapi.get_collection_id(collection)
-        fields = self.rapi.get_available_fields(coll_id, ui_fields=True)
+        fields = self.rapi.get_available_fields(coll_id) #, ui_fields=True)
 
         tab.setWidgetResizable(True)
 
@@ -300,6 +297,9 @@ class SearchDialog(QtWidgets.QDialog, FORM_CLASS):
         # self.eodms.post_message(f"fields['search']: {fields['search']}")
 
         for field in fields['search']:
+            
+            if not fields[field].get('displayed'): continue
+
             # self.eodms.post_message(f"coll_id: {coll_id}")
             lblField = QtWidgets.QLabel()
             # self.eodms.post_message(f"field: {field}")
@@ -359,7 +359,7 @@ class SearchDialog(QtWidgets.QDialog, FORM_CLASS):
                 self.lstColl.addItem(coll)
 
     def clear_filters(self):
-        for idx in range(0, self.tabFilters.count()):
+        for _ in range(0, self.tabFilters.count()):
             self.tabFilters.removeTab(0)
 
     def create_filters(self, collections=None):
@@ -398,7 +398,7 @@ class SearchDialog(QtWidgets.QDialog, FORM_CLASS):
             v_lay = QtWidgets.QVBoxLayout(tab)
 
             coll_id = self.rapi.get_collection_id(coll)
-            fields = self.rapi.get_available_fields(coll_id, ui_fields=True)
+            fields = self.rapi.get_available_fields(coll_id) #, ui_fields=True)
 
             if self.rapi.err_occurred:
                 self.eodms.post_message(self.rapi.err_msg)
@@ -413,6 +413,9 @@ class SearchDialog(QtWidgets.QDialog, FORM_CLASS):
                 cur_fields = []
 
             for field, params in fields['search'].items():
+
+                if not params.get('displayed'): continue
+
                 # self.eodms.post_message(f"coll_id: {coll_id}")
                 # self.eodms.post_message(f"field: {field}")
                 h_lay = QtWidgets.QHBoxLayout()
@@ -430,8 +433,11 @@ class SearchDialog(QtWidgets.QDialog, FORM_CLASS):
                 cboOp = QtWidgets.QComboBox()
                 cboOp.setObjectName(f"cbo{obj_name}")
                 cboOp.setFixedWidth(120)
-                cboOp.addItems(['=', '<', '>', '<>', '<=', '>=', 'LIKE',
-                      'STARTS WITH', 'ENDS WITH', 'CONTAINS'])
+                cboOp.addItems(self.eodms.operators)
+                # combo_str = '\nCombo list:\n'
+                # for idx in range(0, cboOp.count()):
+                #     combo_str += f"  {cboOp.itemText(idx)}\n"
+                # self.eodms.post_message(combo_str)
                 h_lay.addWidget(cboOp)
 
                 # Add edit line
@@ -440,44 +446,42 @@ class SearchDialog(QtWidgets.QDialog, FORM_CLASS):
                 allow_multiple = params.get('allowMultiple')
                 data_type = params.get('datatype')
 
-                if choices is not None:
-                    if allow_multiple:
-                        objValue = QtWidgets.QListWidget()
-                        objValue.setSelectionMode(
-                            QAbstractItemView.ExtendedSelection)
-                        for choice in choices:
-                            # choice_val = choice['value']
-                            choice_val = choice['label']
-                            # if lbl_choice == 'Any':
-                            #     continue
-                            if choice_val == '':
-                                choice_val = choice['value']
-                            if choice_val.lower() == 'any':
-                                choice_val = ''
-                            listWidgetItem = QtWidgets.QListWidgetItem(
-                                choice_val)
-                            objValue.addItem(listWidgetItem)
-                    else:
-                        objValue = QtWidgets.QComboBox()
-                        # choices = [choice['value'] for choice in choices]
-                        # choices = [choice['label'] for choice in choices]
-                        # choices = [choice['value'] if choice['label'] == ''
-                        #            else choice['label'] for choice in choices]
-                        cbo_choices = []
-                        for choice in choices:
-                            if choice['label'] == '':
-                                value = choice['value']
-                            else:
-                                value = choice['label']
-
-                            if value == 'Any':
-                                value = ''
-                            cbo_choices.append(value)
-
-                        objValue.addItems(cbo_choices)
-
-                else:
+                if choices is None:
                     objValue = QtWidgets.QLineEdit()
+                elif allow_multiple:
+                    objValue = QtWidgets.QListWidget()
+                    objValue.setSelectionMode(
+                        QAbstractItemView.ExtendedSelection)
+                    for choice in choices:
+                        # choice_val = choice['value']
+                        choice_val = choice['label']
+                        # if lbl_choice == 'Any':
+                        #     continue
+                        if choice_val == '':
+                            choice_val = choice['value']
+                        if choice_val.lower() == 'any':
+                            choice_val = ''
+                        listWidgetItem = QtWidgets.QListWidgetItem(choice_val)
+                        objValue.addItem(listWidgetItem)
+                else:
+                    objValue = QtWidgets.QComboBox()
+                    # choices = [choice['value'] for choice in choices]
+                    # choices = [choice['label'] for choice in choices]
+                    # choices = [choice['value'] if choice['label'] == ''
+                    #            else choice['label'] for choice in choices]
+                    cbo_choices = []
+                    for choice in choices:
+                        value = choice['value'] if choice['label'] == '' \
+                                else choice['label']
+                        if value == 'Any':
+                            value = ''
+                        cbo_choices.append(value)
+
+                    if '' not in cbo_choices:
+                        cbo_choices.insert(0, '')
+
+                    objValue.addItems(cbo_choices)
+
                 objValue.setObjectName(f"obj{obj_name}")
                 h_lay.addWidget(objValue)
 

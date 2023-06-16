@@ -30,8 +30,10 @@ import json
 import importlib.util
 from packaging import version
 import sys
+import subprocess
+import platform
 
-# from qgis.core import Qgis, QgsMessageLog
+from qgis.core import Qgis, QgsMessageLog
 
 # noinspection PyPep8Naming
 def classFactory(iface):    # pylint: disable=invalid-name
@@ -54,7 +56,7 @@ def check_eodms_rapi():
     newest_version = '0'
     pkg_url = 'https://pypi.org/pypi/py-eodms-rapi/json'
     req = requests.get(pkg_url)
-    
+
     if req.status_code == requests.codes.ok:
         j = req.json()
         info = j.get('info')
@@ -67,7 +69,6 @@ def check_eodms_rapi():
         module = importlib.util.module_from_spec(spec)
         sys.modules[name] = module
         spec.loader.exec_module(module)
-        print(f"{name!r} has been imported")
 
         pkg_version = module.__version__
 
@@ -77,9 +78,29 @@ def check_eodms_rapi():
         if pkg_version < newest_version:
             install_pkg = True
     else:
-        print(f"can't find the {name!r} module")
         install_pkg = True
 
-    # Install py-eodms-rapi
     if install_pkg:
-        pip.main(['install', 'py-eodms-rapi'])
+        # if platform.system() == 'Windows':
+        QgsMessageLog.logMessage(
+            "Installing py-eodms-rapi Python package...", level=Qgis.Info
+        )
+        cmd = 'pip install --trusted-host pypi.org --trusted-host ' \
+                'pypi.python.org --trusted-host files.pythonhosted.org ' \
+                'py-eodms-rapi'
+        pipe = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True)
+        # else:
+        #     pipe = subprocess.Popen(['pip', 'install', 
+        #                     '--trusted-host pypi.org', 
+        #                     '--trusted-host pypi.python.org', 
+        #                     '--trusted-host files.pythonhosted.org', 
+        #                     'py-eodms-rapi'], stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True)
+        output, error = pipe.communicate()
+
+        QgsMessageLog.logMessage(
+            "Installion complete.", level=Qgis.Info
+        )
+    else:
+        QgsMessageLog.logMessage(
+            "py-eodms-rapi Python package already installed.", level=Qgis.Info
+        )

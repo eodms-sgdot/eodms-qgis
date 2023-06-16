@@ -63,6 +63,7 @@ from eodms_rapi import EODMSRAPI
 from osgeo import ogr
 import json
 import datetime
+import copy
 
 from PyQt5.QtCore import Qt, QVariant
 
@@ -121,18 +122,17 @@ class DownloadTask(QgsTask):
             self.eodms.post_message(
                 f'Task "{self.desc}" completed', tag=MESSAGE_CATEGORY,
                 level=Qgis.Success)
+        elif self.exception is None:
+            self.eodms.post_message(
+                f'Task "{self.desc}" not successful but '
+                f'without exception (probably the task was manually '
+                f'canceled by the user)', tag=MESSAGE_CATEGORY,
+                level=Qgis.Warning)
         else:
-            if self.exception is None:
-                self.eodms.post_message(
-                    f'Task "{self.desc}" not successful but '
-                    f'without exception (probably the task was manually '
-                    f'canceled by the user)', tag=MESSAGE_CATEGORY,
-                    level=Qgis.Warning)
-            else:
-                self.eodms.post_message(
-                    f'Task "{self.desc}" Exception: {self.exception}',
-                    tag=MESSAGE_CATEGORY, level=Qgis.Critical)
-                raise self.exception
+            self.eodms.post_message(
+                f'Task "{self.desc}" Exception: {self.exception}',
+                tag=MESSAGE_CATEGORY, level=Qgis.Critical)
+            raise self.exception
 
         self.eodms.post_message("Downloaded successfully.")
 
@@ -177,17 +177,15 @@ class OrderTask(QgsTask):
         # self.eodms.post_message(order_rec_ids, tag=MESSAGE_CATEGORY)
 
         for feat in features:
-            if 'properties' in feat.keys():
-                props = feat.get('properties')
-            else:
-                props = feat
+            props = feat.get('properties') if 'properties' in feat.keys() \
+                        else feat
             rec_id = props.get('recordId')
             if rec_id is None:
                 rec_id = props.get('RECORD_ID')
             if rec_id in order_rec_ids:
                 res.append(props)
 
-        if len(res) == 0:
+        if not res:
             return False
 
         self.eodms.post_message(f"res: {res}")
@@ -270,8 +268,13 @@ class SearchTask(QgsTask):
                                     f"  Dates: {dates}\n"
                                     f"  Maximum Results: {max_res}",
                                     tag=MESSAGE_CATEGORY)
-            self.rapi.search(coll_id, filters, features, dates,
+            srch_total = self.rapi.search(coll_id, filters, features, dates,
                              max_results=max_res)
+
+            self.eodms.post_message(f"RAPI URL: {self.rapi.get_rapi_url()}",
+                                tag=MESSAGE_CATEGORY)
+            self.eodms.post_message(f"Number of images returned: {srch_total}",
+                                tag=MESSAGE_CATEGORY)
 
         self.rapi.set_field_convention('upper')
         self.rapi_results = self.rapi.get_results('geojson',
@@ -280,9 +283,6 @@ class SearchTask(QgsTask):
         # self.rapi_results = self.rapi.get_results()
 
         # QgsMessageLog.logMessage(f"RAPI URL: {self.rapi.get_rapi_url()}")
-
-        self.eodms.post_message(f"RAPI URL: {self.rapi.get_rapi_url()}",
-                                tag=MESSAGE_CATEGORY)
 
         return True
 
@@ -355,6 +355,7 @@ class ThumbTask(QgsTask):
 
             rec_id = img['RECORD_ID']
             thumb_url = img['THUMBNAIL_URL']
+            self.eodms.post_message(f"Thumbnail URL: {thumb_url}")
             layer_name = f"Sequence ID {rec_id}"
             # thumb_fn = f"C:\\TEMP\\Sequence_ID_{rec_id}.jpg"
             # urllib.request.urlretrieve(thumb_url, thumb_fn)
@@ -367,8 +368,7 @@ class ThumbTask(QgsTask):
             width = tmp_layer.width()
             height = tmp_layer.height()
 
-            gcps = []
-            gcps.append(f"0 0 {poly[0][0].x()} {poly[0][0].y()} 0")
+            gcps = [f"0 0 {poly[0][0].x()} {poly[0][0].y()} 0"]
             gcps.append(f"0 {height} {poly[0][1].x()} {poly[0][1].y()} 0")
             gcps.append(f"{width} {height} {poly[0][2].x()} {poly[0][2].y()} 0")
             gcps.append(f"{width} 0 {poly[0][3].x()} {poly[0][3].y()} 0")
@@ -387,8 +387,8 @@ class ThumbTask(QgsTask):
 
             QgsProject.instance().addMapLayer(rast_lyr, False)
             group.insertLayer(idx, rast_lyr)
-            # group.addLayer(rast_lyr)
-            # group.insertChildNode(idx, rast_lyr)
+                # group.addLayer(rast_lyr)
+                # group.insertChildNode(idx, rast_lyr)
 
         # tree_root.addChildNode(group)
 
@@ -408,18 +408,17 @@ class ThumbTask(QgsTask):
         if result:
             self.eodms.post_message(f'Task "{self.desc}" completed',
                                     tag=MESSAGE_CATEGORY, level=Qgis.Success)
+        elif self.exception is None:
+            self.eodms.post_message(
+                f'Task "{self.desc}" not successful but '
+                f'without exception (probably the task was manually '
+                f'canceled by the user)',
+                tag=MESSAGE_CATEGORY, level=Qgis.Warning)
         else:
-            if self.exception is None:
-                self.eodms.post_message(
-                    f'Task "{self.desc}" not successful but '
-                    f'without exception (probably the task was manually '
-                    f'canceled by the user)',
-                    tag=MESSAGE_CATEGORY, level=Qgis.Warning)
-            else:
-                self.eodms.post_message(
-                    f'Task "{self.desc}" Exception: {self.exception}',
-                    tag=MESSAGE_CATEGORY, level=Qgis.Critical)
-                raise self.exception
+            self.eodms.post_message(
+                f'Task "{self.desc}" Exception: {self.exception}',
+                tag=MESSAGE_CATEGORY, level=Qgis.Critical)
+            raise self.exception
 
         self.eodms.post_message("Search task complete.", tag=MESSAGE_CATEGORY)
 
@@ -448,7 +447,7 @@ class Eodms:
         self.conf_util = config_util.ConfigUtils(self)
         self.conf_util.import_config()
 
-        self.post_message("EODMS Plugin, Version %s" % __version__)
+        self.post_message(f"EODMS Plugin, Version {__version__}")
 
         self.proj = QgsProject.instance()
 
@@ -459,7 +458,7 @@ class Eodms:
 
         # Set paths here for easier changes
         self.resource_path = os.path.join(':', 'plugins', 'eodms', 'resources')
-        self.post_message("self.resource_path: %s" % self.resource_path)
+        self.post_message(f"self.resource_path: {self.resource_path}")
         self.search_path = f'{self.resource_path}/search.png'
         self.thumbnail_path = f'{self.resource_path}/thumbnail.png'
         self.settings_path = f'{self.resource_path}/settings.png'
@@ -475,9 +474,9 @@ class Eodms:
         # initialize locale
         # self.post_message(f"QSettings: {QSettings().value('locale/
         # userLocale')}")
-        locale = QSettings().value('locale/userLocale')[0:2]
-        locale_path = os.path.join(self.plugin_dir, 'i18n',
-                                   'Eodms_{}.qm'.format(locale))
+        locale = QSettings().value('locale/userLocale')[:2]
+        locale_path = os.path.join(self.plugin_dir, 'i18n', 
+                                    f'Eodms_{locale}.qm')
 
         self.post_message(f"locale_path: {locale_path}")
 
@@ -511,6 +510,9 @@ class Eodms:
 
         self.prev_srch_fn = f"{self.plugin_dir}\\previous_searches.json"
 
+        self.operators = ['=', '<', '>', '<>', '<=', '>=', 'LIKE',
+                      'STARTS WITH', 'ENDS WITH', 'CONTAINS']
+
     def _save_search(self, search_params):
         
         searches = {}
@@ -519,13 +521,15 @@ class Eodms:
             with open(self.prev_srch_fn, 'r') as f:
                 searches = json.load(f)
 
+        prev_searches = copy.deepcopy(searches)
+
         now = datetime.datetime.now()
         dt_string = now.strftime("%Y%m%d_%H%M%S")
         searches[dt_string] = search_params
 
         # Check if new search is the same as any previous searches
         #   If so, don't add new search
-        for k, srch in searches.items():
+        for k, srch in prev_searches.items():
             if search_params == srch:
                 return None
 
@@ -558,9 +562,7 @@ class Eodms:
         msgBox.setText(msg)
         msgBox.setWindowTitle(title)
         msgBox.setStandardButtons(QMessageBox.Ok)
-        returnValue = msgBox.exec()
-
-        return returnValue
+        return msgBox.exec()
 
     def get_group(self, group_name):
 
@@ -698,17 +700,13 @@ class Eodms:
                 level = Qgis.Info
 
         if item is not None:
-            if isinstance(item, xml.etree.ElementTree.Element):
-                item_str = ElementTree.tostring(item).decode('utf-8') \
-                    .replace('<', '[').replace('>', ']')
-            else:
-                item_str = str(item)
+            item_str = str(item)
             msg = f'{msg}: {item_str}'
 
         if not isinstance(msg, str):
             msg = str(msg)
 
-        msg = msg.replace('<', '!').replace('>', '!')
+        msg = msg.replace('<', '&lt;').replace('>', '&gt;')
         msg_tr = self.tr(msg)
 
         QgsMessageLog.logMessage(msg_tr, tag, level, notify_user)
@@ -730,8 +728,7 @@ class Eodms:
         #         key, value = item
         #         settings[key.strip('\n')] = value.strip('\n')
 
-        settings = {}
-        settings['username'] = self.conf_util.get('Credentials', 'username')
+        settings = {'username': self.conf_util.get('Credentials', 'username')}
         settings['password'] = base64.b64decode(
             self.conf_util.get('Credentials', 'password')).decode("utf-8")
 
@@ -1268,8 +1265,10 @@ class Eodms:
                 rapi_filters = {}
                 for filter in filters:
                     # filter_name = filter[0].text().replace(':', '')
+                    
                     filter_name = filter[0].replace(':', '')
                     op = filter[1].currentText()
+
                     if isinstance(filter[2], QtWidgets.QComboBox):
                         values = [filter[2].currentText()]
                     elif isinstance(filter[2], QtWidgets.QListWidget):

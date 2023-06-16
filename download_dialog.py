@@ -77,18 +77,17 @@ class GetOrderTask(QgsTask):
             self.eodms.post_message(
                 f'Task "{self.desc}" completed', tag=MESSAGE_CATEGORY,
                 level=Qgis.Success)
+        elif self.exception is None:
+            self.eodms.post_message(f'Task "{self.desc}" not successful '
+                                    f'but without exception (probably the '
+                                    f'task was manually canceled by the '
+                                    f'user)', tag=MESSAGE_CATEGORY,
+                                    level=Qgis.Warning)
         else:
-            if self.exception is None:
-                self.eodms.post_message(f'Task "{self.desc}" not successful '
-                                        f'but without exception (probably the '
-                                        f'task was manually canceled by the '
-                                        f'user)', tag=MESSAGE_CATEGORY,
-                                        level=Qgis.Warning)
-            else:
-                self.eodms.post_message(
-                    f'Task "{self.desc}" Exception: {self.exception}',
-                    tag=MESSAGE_CATEGORY, level=Qgis.Critical)
-                raise self.exception
+            self.eodms.post_message(
+                f'Task "{self.desc}" Exception: {self.exception}',
+                tag=MESSAGE_CATEGORY, level=Qgis.Critical)
+            raise self.exception
 
         self.eodms.post_message("Collection task complete.")
 
@@ -148,24 +147,23 @@ class DownloadDialog(QtWidgets.QDialog, FORM_CLASS):
 
         in_date = in_date.replace(tzinfo=from_zone)
 
-        local_time = in_date.astimezone(to_zone)
-
-        return local_time
+        return in_date.astimezone(to_zone)
 
     def refresh_orders(self):
 
         self.eodms.post_message("Refreshing order list...",
                                 tag=MESSAGE_CATEGORY)
 
-        self.tblImages.setEnabled(False)
-        self.butRefresh.setEnabled(False)
-        self.butOk.setEnabled(False)
-
+        self.enable_disable_objs(False)
         self.fill_orders()
 
-        self.tblImages.setEnabled(True)
-        self.butRefresh.setEnabled(True)
-        self.butOk.setEnabled(True)
+        self.enable_disable_objs(True)
+
+    # TODO Rename this here and in `refresh_orders`
+    def enable_disable_objs(self, state):
+        self.tblImages.setEnabled(state)
+        self.butRefresh.setEnabled(state)
+        self.butOk.setEnabled(state)
 
     def fill_orders(self):
 
@@ -233,19 +231,19 @@ class DownloadDialog(QtWidgets.QDialog, FORM_CLASS):
                 #                         tag=MESSAGE_CATEGORY)
 
                 for sel in lyr_sel:
-                    # self.eodms.post_message(f"sel: {sel.attributes()}",
-                    #                         tag=MESSAGE_CATEGORY)
-                    idx = [i for i, o in enumerate(self.orders)
-                           if o['recordId'] == sel['RECORD_ID']]
-                    if len(idx) > 0:
+                    if idx := [
+                        i
+                        for i, o in enumerate(self.orders)
+                        if o['recordId'] == sel['RECORD_ID']
+                    ]:
                         self.tblImages.selectRow(idx[0])
 
     def show_browser_dialog(self):
 
-        folder = QFileDialog.getExistingDirectory(self,
-                    self.eodms.tr("Open Directory"),
-                    self.eodms.download_folder, QFileDialog.ShowDirsOnly
-                     | QFileDialog.DontResolveSymlinks)
-
-        if folder:
+        if folder := QFileDialog.getExistingDirectory(
+            self,
+            self.eodms.tr("Open Directory"),
+            self.eodms.download_folder,
+            QFileDialog.ShowDirsOnly | QFileDialog.DontResolveSymlinks,
+        ):
             self.txtPath.setText(folder)
