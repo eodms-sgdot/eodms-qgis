@@ -368,11 +368,29 @@ class ThumbTask(QgsTask):
             width = tmp_layer.width()
             height = tmp_layer.height()
 
+            # authCfg = '658749d'
+            # uri = QgsDataSourceUri()
+            # uri.setParam("authcfg", authCfg)
+            # uri.setParam('url', thumb_url)
+            # uri.setParam("crs", 'EPSG:4326')
+            # uri.setParam("identifier", layer_name)
+            # # uri.setUsername(self.eodms.get_setting('username'))
+            # # uri.setPassword(self.eodms.get_setting('password'))
+            # self.eodms.post_message(f'uri: {uri}', tag=MESSAGE_CATEGORY)
+            # tmp_layer = QgsRasterLayer(uri.uri())
+            # width = tmp_layer.width()
+            # height = tmp_layer.height()
+
             gcps = [f"0 0 {poly[0][0].x()} {poly[0][0].y()} 0"]
             gcps.append(f"0 {height} {poly[0][1].x()} {poly[0][1].y()} 0")
             gcps.append(f"{width} {height} {poly[0][2].x()} {poly[0][2].y()} 0")
             gcps.append(f"{width} 0 {poly[0][3].x()} {poly[0][3].y()} 0")
             extra = ' -gcp '.join(gcps)
+
+            # lyr_url = uri.param('url')
+            # self.eodms.post_message(f'tmp_layer: {dir(tmp_layer)}',
+            #                     tag=MESSAGE_CATEGORY)
+            # self.eodms.post_message(f'uri URL: {lyr_url}', tag=MESSAGE_CATEGORY)
 
             proc_res = processing.run("gdal:translate", {
                 'INPUT': tmp_layer,
@@ -507,6 +525,9 @@ class Eodms:
         self.download_folder = ''
         self.username = self.get_setting('username')
         self.password = self.get_setting('password')
+
+        os.environ["GDAL_HTTP_AUTH"] = "BASIC"
+        os.environ["GDAL_HTTP_USERPWD"] = f"{self.username}:{self.password}"
 
         self.prev_srch_fn = f"{self.plugin_dir}\\previous_searches.json"
 
@@ -811,6 +832,9 @@ class Eodms:
 
         self.username = self.get_setting('username')
         self.password = self.get_setting('password')
+
+        os.environ["GDAL_HTTP_AUTH"] = "BASIC"
+        os.environ["GDAL_HTTP_USERPWD"] = f"{self.username}:{self.password}"
 
         self.rapi = EODMSRAPI(self.username, self.password)
 
