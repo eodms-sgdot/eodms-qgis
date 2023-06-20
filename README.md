@@ -6,6 +6,19 @@ EODMS QGIS Plugin
 
 This Readme contains a quick guide to installing the EODMS plugin in QGIS.
 
+## Download ZIP from Github
+
+You can download the plugin as a .zip file by:
+
+- Selecting **Download ZIP** from the **<> Code** drop-down
+
+	<img src="./docs/images/code-dropdown.png" alt="Code Dropdown" title="Select Download ZIP from Code dropdown" style="box-shadow:5px 5px 5px grey;"><br>
+    *Select Download ZIP from Code dropdown*
+
+or
+
+- Using this link https://github.com/eodms-sgdot/eodms-qgis/archive/refs/heads/main.zip
+
 ## Installation
 
 ### Zip Plugin Folder and Install in QGIS
