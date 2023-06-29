@@ -6,6 +6,14 @@ EODMS QGIS Plugin
 
 This Readme contains a quick guide to installing the EODMS plugin in QGIS.
 
+> **_NOTE:_** QGIS must be using Python 3.8 or higher to run this plugin. You can check the Python version by opening the Python console <kbd>![Python Console Button](./docs/images/python-console.png)</kbd> and entering: 
+> 
+> ```python
+> >>> import sys
+> >>> sys.version
+> '3.9.5 (tags/v3.9.5:0a7dcbd, May  3 2021, 17:27:52) [MSC v.1928 64 bit (AMD64)]'
+> ```
+
 ## Download ZIP from Github
 
 You can download the plugin as a .zip file by:

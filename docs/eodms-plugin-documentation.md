@@ -1,5 +1,5 @@
-EODMS Plugin Digitization Documentation
-=====================================
+EODMS Plugin Documentation
+==========================
 
 <!-- TOC -->
 
@@ -11,7 +11,15 @@ The installation files for QGIS can be found at https://qgis.org/en/site/foruser
 
 For this documentation, it is assumed you have some knowledge of using QGIS, such as loading layers, drawing features, adding symbology including labels and manipulating the map view.
 
-## NAPL Generator Plugin Installation
+## EODMS Plugin Installation
+
+> **_NOTE:_** QGIS must be using Python 3.8 or higher to run this plugin. You can check the Python version by opening the Python console <kbd>![Python Console Button](./images/python-console.png)</kbd> and entering: 
+> 
+> ```python
+> >>> import sys
+> >>> sys.version
+> '3.9.5 (tags/v3.9.5:0a7dcbd, May  3 2021, 17:27:52) [MSC v.1928 64 bit (AMD64)]'
+> ```
 
 ### Zip Plugin Folder and Install in QGIS
 
